@@ -1,0 +1,207 @@
+{
+  "name": "MeatNDoor Campaign Automation Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meatndoor-campaign",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1-webhook-trigger",
+      "name": "Campaign Start Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Stage 2: Validate Required Inputs\nconst body = $input.first().json.body || $input.first().json;\n\nif (!body.campaign_id) {\n  throw new Error('Validation Error: campaign_id is required');\n}\nif (!body.target_location) {\n  throw new Error('Validation Error: target_location is required');\n}\n\nreturn [{\n  json: {\n    campaign_id: String(body.campaign_id).trim(),\n    name: body.name || 'MeatNDoor Campaign',\n    objective: body.objective || 'Audience Research & Outreach',\n    target_location: body.target_location || 'Mumbai',\n    source_accounts: Array.isArray(body.source_accounts) ? body.source_accounts : [],\n    max_leads: parseInt(body.max_leads, 10) || 500,\n    min_lead_score: parseInt(body.min_lead_score, 10) || 0,\n    trigger_action: body.trigger_action || 'start',\n    notes: body.notes || '',\n    received_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "2-validate-inputs",
+      "name": "Validate Campaign Inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://127.0.0.1:8000/campaign/start",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.CAMPAIGN_API_TOKEN || $env.N8N_WEBHOOK_SECRET || '' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"campaign_id\": \"{{ $json.campaign_id }}\",\n  \"name\": \"{{ $json.name }}\",\n  \"objective\": \"{{ $json.objective }}\",\n  \"target_location\": \"{{ $json.target_location }}\",\n  \"source_accounts\": {{ JSON.stringify($json.source_accounts) }},\n  \"max_leads\": {{ $json.max_leads }},\n  \"min_lead_score\": {{ $json.min_lead_score }},\n  \"notes\": \"{{ $json.notes }}\",\n  \"async\": false\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "3-execute-pipeline",
+      "name": "Execute Pipeline via Local Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Stages 7-10: Format Metrics & Execution Record\nconst inputData = $input.first().json;\n\nconst metrics = inputData.metrics || {};\nconst campaignId = inputData.campaign_id || $('Validate Campaign Inputs').first().json.campaign_id;\n\nreturn [{\n  json: {\n    status: 'success',\n    campaign_id: campaignId,\n    execution_id: inputData.execution_id || ('n8n_' + Date.now()),\n    metrics: {\n      leads_discovered: metrics.leads_discovered || 0,\n      leads_processed: metrics.leads_processed || 0,\n      leads_qualified: metrics.leads_qualified || 0,\n      leads_suppressed: metrics.leads_suppressed || 0,\n      drafts_generated: metrics.drafts_generated || 0,\n      awaiting_review: metrics.awaiting_review || 0\n    },\n    spreadsheet_id: '1sLCfz9Eho4OWjsDTILIVKNRtwVYbCoibFK6z6un7c_Y',\n    excel_mirror: 'exports/instagram_research.xlsx',\n    completed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "4-format-results",
+      "name": "Format Pipeline Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "5-respond-webhook",
+      "name": "Respond to Webhook (Success)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "6-error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        440,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle execution failure and format error payload\nconst err = $input.first().json.execution.error;\nreturn [{\n  json: {\n    status: 'failed',\n    error: err ? err.message : 'Unknown execution failure',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "7-handle-error",
+      "name": "Format Error Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "8-respond-error",
+      "name": "Respond with Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        920,
+        520
+      ]
+    }
+  ],
+  "connections": {
+    "Campaign Start Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Campaign Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Campaign Inputs": {
+      "main": [
+        [
+          {
+            "node": "Execute Pipeline via Local Service",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Pipeline via Local Service": {
+      "main": [
+        [
+          {
+            "node": "Format Pipeline Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Pipeline Results": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook (Success)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Error Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error Payload": {
+      "main": [
+        [
+          {
+            "node": "Respond with Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

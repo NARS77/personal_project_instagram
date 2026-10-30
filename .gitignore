@@ -7,3 +7,15 @@ bench/results/**/raw/
 bench/video/raw*/
 bench/video/frames/
 bench/explore/state/
+exports/
+*.db
+*.sqlite
+.checkpoints/
+__pycache__/
+*.xlsx
+token.json
+credentials.json
+service_account*.json
+*.csv
+.env
+
