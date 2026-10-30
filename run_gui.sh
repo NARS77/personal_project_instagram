@@ -42,7 +42,12 @@ echo "[+] URL: http://localhost:$PORT"
 echo "[+] Press Ctrl+C in this terminal to stop the GUI server."
 echo ""
 
-exec python3 -m streamlit run "$SCRIPT_DIR/gui_app.py" \
+APP_PATH="$SCRIPT_DIR/gui_app.py"
+if [ -f "$SCRIPT_DIR/api-anything/gui_app.py" ]; then
+    APP_PATH="$SCRIPT_DIR/api-anything/gui_app.py"
+fi
+
+exec python3 -m streamlit run "$APP_PATH" \
     --server.port "$PORT" \
     --server.headless true \
     --browser.gatherUsageStats false
